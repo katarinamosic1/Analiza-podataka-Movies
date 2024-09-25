@@ -1,10 +1,11 @@
 # Analiza-podataka-Movies
-Seminarski rad iz predmeta Uvod u nauku o podacima. Projekat analizira dataset o filmskoj industriji iz perioda 1980-2020, sa fokusom na predviđanje zarade i ispitivanje faktora koji utiču na uspeh filmova.
 
-1. Uvod
+Uvod
+   
 Seminarski rad iz predmeta Uvod u nauku o podacima realizovan u programskom jeziku R. Analizirala sam filmsku industriju koristeći podatke o filmovima proizvedenim od 1980. do 2020. godine, preuzete sa IMDb-a. Cilj analize je bio da se istraži stanje filmske industrije i da se predvidi zarada filmova.
 
-2. Opis podataka
+Opis podataka
+
 Dataset movies.csv sadrži informacije o filmovima, uključujući:
     name - kategorijska promenljiva koja označava naziv filma
     rating - kategorijska promenljiva koja označava kategoriju filma (R, PG,..)
@@ -22,8 +23,10 @@ Dataset movies.csv sadrži informacije o filmovima, uključujući:
     company - kategorijska promenljiva koja označava produkcijsku kuću
     runtime - numerička promenljiva koja označava trajanje filma
 
-3. Cilj projekta
+Cilj projekta
+
 Glavni cilj je predviđanje kolone gross (zarada filmova) i da se otkrije da li filmska industrija propada.
 
-4. Rezultati i zaključci
+Rezultati i zaključci
+
 Na osnovu analize grafika i prethodnih zaključaka, mogu da zajljučim da filmska industrija ne pokazuje znakove propadanja, naročito sa znatnim porastom budžeta i prihoda nakon 2010. godine. Podaci su prikupljeni do 2020. godinom pa nemamo uvid u najnovije trendove. Kada je reč o kreiranju modela i predviđanju kolone 'gross', najbolji model koji sam dobila koristi Random Forest pristup, koji objašnjava oko 74% varijanse u podacima.

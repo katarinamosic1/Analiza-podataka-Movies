@@ -1,6 +1,7 @@
 # Analiza-podataka-Movies
 
 Seminarski rad iz predmeta Uvod u nauku o podacima realizovan u programskom jeziku R. Analizirala sam filmsku industriju koristeći podatke o filmovima proizvedenim od 1980. do 2020. godine, preuzete sa IMDb-a. Cilj analize je bio da se istraži stanje filmske industrije i da se predvidi zarada filmova.
+Link ka podacima na kaggle sajt-u: https://www.kaggle.com/datasets/danielgrijalvas/movies
 
 Opis podataka
 

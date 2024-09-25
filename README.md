@@ -5,35 +5,36 @@ Seminarski rad iz predmeta Uvod u nauku o podacima realizovan u programskom jezi
 Opis podataka
 
 Dataset movies.csv sadrži informacije o filmovima, uključujući:
-    -**name**: kategorijska promenljiva koja označava naziv filma
     
-    -**rating**: kategorijska promenljiva koja označava kategoriju filma (R, PG,..) 
+    name: kategorijska promenljiva koja označava naziv filma
     
-    **genre**: kategorijska promenljiva koja označava žanr filma
+    rating: kategorijska promenljiva koja označava kategoriju filma (R, PG,..) 
     
-    **year**: numerička promenljiva koja označava godinu objavljivanja filma
+    genre: kategorijska promenljiva koja označava žanr filma
     
-    **released**: kategorijska promenljiva koja označava datum objavljivanja u formatu (YYYY-MM-DD)
+    year: numerička promenljiva koja označava godinu objavljivanja filma
     
-    **score**: numerička promenljiva koja označava IMDb ocenu korisnika
+    released: kategorijska promenljiva koja označava datum objavljivanja u formatu (YYYY-MM-DD)
     
-    **votes**: numerička promenljiva koja označava broj ljudi koji su glasali
+    score: numerička promenljiva koja označava IMDb ocenu korisnika
     
-    **director**: kategorijska promenljiva koja označava direktora filma
+    votes: numerička promenljiva koja označava broj ljudi koji su glasali
     
-    **writer**: kategorijska promenljiva koja označava pisca
+    director: kategorijska promenljiva koja označava direktora filma
     
-    **star**: kategorijska promenljiva koja označava glumca/glumicu koji je zvezda filma
+    writer: kategorijska promenljiva koja označava pisca
     
-    **country**: kategorijska promenljiva koja označava zemlju porekla filma
+    star: kategorijska promenljiva koja označava glumca/glumicu koji je zvezda filma
     
-    **budget**: numerička promenljiva koja označava budžet filma
+    country: kategorijska promenljiva koja označava zemlju porekla filma
     
-    **gross**: numerička promenljiva koja oznacava prihod filma
+    budget: numerička promenljiva koja označava budžet filma
     
-    **company**: kategorijska promenljiva koja označava produkcijsku kuću
+    gross: numerička promenljiva koja oznacava prihod filma
     
-    **runtime**: numerička promenljiva koja označava trajanje filma
+    company: kategorijska promenljiva koja označava produkcijsku kuću
+    
+    runtime: numerička promenljiva koja označava trajanje filma
 
 Cilj projekta: Glavni cilj je predviđanje kolone gross (zarada filmova) i da se otkrije da li filmska industrija propada.
 

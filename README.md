@@ -5,7 +5,7 @@ Seminarski rad iz predmeta Uvod u nauku o podacima realizovan u programskom jezi
 Opis podataka
 
 Dataset movies.csv sadrži informacije o filmovima, uključujući:
-    -**name**: kategorijska promenljiva koja označava naziv filma
+    - **name**: kategorijska promenljiva koja označava naziv filma
     -**rating**: kategorijska promenljiva koja označava kategoriju filma (R, PG,..) 
     -**genre**: kategorijska promenljiva koja označava žanr filma
     -**year**: numerička promenljiva koja označava godinu objavljivanja filma

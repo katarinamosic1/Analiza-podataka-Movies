@@ -1,0 +1,1399 @@
+---
+title: "Seminarski rad - Movie Industry"
+author: "Katarina Mosic 90/2018"
+date: "2024-09-06"
+output:
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Tema: Movie Industry
+Naziv: movies.csv
+
+Movie Industry je skup podataka koji daje informacije o filmovima napravljenim u periodu 1985-2020.
+Cilj analize podataka je da se otkrije da li filmska industrija propada.
+Kolona za predvidjanje gross.
+Podaci su izvučeni sa IMDb-a.
+Link ka skupu podataka na kaggle sajtu: https://www.kaggle.com/datasets/danielgrijalvas/movies
+
+UČITAVANJE PODATAKA
+
+Učitavanje potrebnih biblioteka
+
+```{r}
+library(tidyverse)
+library(Amelia)
+library(nortest)
+library(ggplot2)
+library(corrplot)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(caret)
+```
+
+Učitavanje podataka: movies.csv.
+
+```{r}
+movies = read.csv("C:/Users/Nikola/Documents/data/movies.csv", sep=",")
+View(movies)
+```
+
+Funkcija head nam pomaže da se upoznamo sa podacima prikazujući prvih 6 redova u skupu podataka.
+
+```{r}
+head(movies)
+```
+
+Funkcije ncol i nrow daju informacije o dimenzija skupa podataka.
+Set podataka movies se sastoji od 15 kolona i 7668 redova.
+
+```{r}
+ncol(movies)
+nrow(movies)
+```
+
+Funkcija str(movies) nam daje uvid u tipove podataka.
+U skupu podataka se nalazi 9 kategorijskih (chr) i 6 numeričkih promenljivih (int, num).
+
+```{r}
+str(movies)
+```
+
+Opis podataka
+
+Skup podataka sadrži sledeće kolone:
+
+1. name - kategorijska promenljiva koja označava naziv filma
+
+2. rating - kategorijska promenljiva koja označava kategoriju filma (R, PG,..)
+
+3. genre - kategorijska promenljiva koja označava žanr filma
+
+4. year - numerička promenljiva koja označava godinu objavljivanja filma
+
+5. released - kategorijska promenljiva koja označava datum objavljivanja u formatu (YYYY-MM-DD)
+
+6. score - numerička promenljiva koja označava IMDb ocenu korisnika
+
+7. votes - numerička promenljiva koja označava broj ljudi koji su glasali
+
+8. director - kategorijska promenljiva koja označava direktora filma
+
+9. writer - kategorijska promenljiva koja označava pisca
+
+10. star - kategorijska promenljiva koja označava glumca/glumicu koji je zvezda filma
+
+11. country - kategorijska promenljiva koja označava zemlju porekla filma
+
+12. budget - numerička promenljiva koja označava budžet filma.
+
+13. gross - numerička promenljiva koja oznacava prihod filma
+
+14. company - kategorijska promenljiva koja označava produkcijsku kuću
+
+15. runtime - numerička promenljiva koja označava trajanje filma
+
+PRIPREMA PODATAKA
+
+Rukovanje nedostajućim vrednostima obezbedjuje da podaci budu u odgovarajućem obliku za dalju analizu.
+
+
+Detektovanje nedostajućih vrednosti
+
+Funkcija summary nam daje statistički prikaz podataka.
+
+```{r}
+summary(movies)
+```
+
+Ovaj skup podataka ima nedostajuće vrednosti u 5 numeričkih kolona i to su: score, votes, budget, gross i runtime. Ove podatke je potrebno pripremiti za dalju analizu.
+
+Ispod je procentualni prikaz nedostajućih vrednosti.
+
+```{r}
+colMeans(is.na(movies))*100
+```
+
+Možemo da vidimo da nijedna kolona nema više od 60% observacija za koje podaci nedostaju, zato što bi jedino takva kolona mogla da se obriše, naravno u slučaju da je beznačajna.
+Kao što smo mogli i iz summary funkcije da vidimo, najviše podataka nedostaje u koloni budget, oko 28%.
+
+
+Grafički prikaz kolona sa nedostajućim vrednostima:
+
+```{r}
+par(mfrow=c(1,1))
+missmap(obj = movies, main = "Movies dataset")
+```
+
+Ovde možemo da vidimo da ukupan procenat numeričkih podataka koji nedostaju u odnosu na celi skup iznosi 2%.
+
+
+Prva numerička kolona sa nedostajućim vrednostima je score.
+
+```{r}
+sum(is.na(movies$score))
+```
+
+U ovoj koloni imamo 3 podatka koji nedostaju.
+Pošto je podatke uvek bolje sačuvati nego obrisati, a u ovom slučaju imamo mali broj podataka koji nedostaje, možemo upotrebiti metodu umetanja vrednosti kao npr. mean ili median.
+Izbor metode zavisi od distribucije podataka, zato moram da proverim kakva je distribucija podataka u ovoj koloni.
+Shapiro-Wilk test koji smo ranije koristili je ograničen na 3-5000 podataka, što znači da ne može da se upotrebi na ovom koji ima 7668 podataka.
+Zbog toga koristm Anderson-Darling test za proveru normalnosti.
+
+```{r}
+ad.test(movies$score)
+```
+
+Velika vrednost statistike A ukazuje na vece odstupanje od normalne distribucije.
+p-vrednost < 2.2e-16 - manje od 0.05
+Odbacujemo pretpostavku da su podaci u ovoj koloni normalno distribuirani.
+Kada varijabla nije normalno distribuirana, medijana je bolji izbor od proseka za popunjavanje nedostajućih vrednosti, zato što je manje podložna ekstremnim vrednostima (outlierima).
+
+```{r}
+median.score <- median(x=movies$score, na.rm = T)
+median.score
+
+movies$score[is.na(movies$score)] <- median.score
+
+sum(is.na(movies$score)) #Provera da li jos uvek ima vrednosti koje nedostaju
+```
+
+Druga numerička kolona sa nedostajućim vrednostima je votes.
+
+```{r}
+sum(is.na(movies$votes))
+```
+
+U ovoj koloni takodje imamo 3 podatka koji nedostaju.
+Ponovo koristim Anderson-Darling test za proveru normalnosti kako bih odredila šta ce biti vrednost umetanja.
+
+```{r}
+ad.test(movies$votes)
+```
+
+Velika vrednost statistike A i mala p-vrednost < 2.2e-16 ukazuju na to da podaci ni u ovoj koloni nisu normalno distribuirani - zato ponovo koristim medijanu.
+
+```{r}
+median.votes <- median(x = movies$votes, na.rm=T)
+median.votes
+
+movies$votes[is.na(movies$votes)] <- median.votes
+
+sum(is.na(movies$votes)) #Provera da li jos uvek ima vrednosti koje nedostaju
+```
+
+Treća numerička kolona sa nedostajućim vrednostima je runtime.
+
+```{r}
+sum(is.na(movies$runtime))
+```
+
+Isto kao i do sad, zadržaću ove podatke, samo prvo proveravam distribuciju podataka.
+
+```{r}
+ad.test(movies$runtime)
+```
+I ovde vidimo da podaci nisu normalno distribuirani. Ponovo koristim medijanu umesto proseka za ovu varijablu.
+
+```{r}
+median.runtime <- median(x = movies$runtime, na.rm=T)
+median.runtime
+
+movies$runtime[is.na(movies$runtime)] <- median.runtime
+
+sum(is.na(movies$runtime)) #Provera da li jos uvek ima vrednosti koje nedostaju
+```
+
+Naredne dve numerčke kolone sa nedostajućim vrednostima su budget i gross.
+Prvo proveravam da li postoje redovi koji nemaju ni gross ni budget.
+
+```{r}
+cat("Broj nedostajucih u koloni budget:", sum(is.na(movies$budget)), "\n")
+cat("Broj nedostajucih u koloni gross:", sum(is.na(movies$gross)), "\n")
+
+missing = which(is.na(movies$budget) & is.na(movies$gross))
+movies_miss = movies[missing, ]
+
+cat("Broj redova koji nemaju ni gross ni budget:", sum(is.na(movies_miss$budget)), "\n")
+cat("Procenat redova koji nemaju ni gross ni budget:", (sum(is.na(movies_miss$gross))/ 7668) * 100, "%") #procenat zajednicikih nedostajucih u odnosu na ceo skup
+```
+Postoje redovi koji nedostaju u obe kolone i ima ih ukupno 128 što predstavlja ~1.7% u odnosu na ceo skup podataka. Ove redove je možda najbolje obrisati zato što je budget bitan prediktor i zato što ih nema puno, a popunjavanje ovih kolona može da dovede do lažnih zaključaka što može negativno uticati na tačnost modela.
+Zato ću kombinovati pristupe. Ove redove ću obrisati, a ostale ću analizirati u nastavku zato što je previše da obrišem sve podatke iz obe kolone koji nedostaju.
+
+
+```{r}
+movies <- movies[-missing, ]
+```
+
+Sada tražim pristup za popunjavanje kolone budget.
+
+```{r}
+sum(is.na(movies$budget))
+```
+Sada nedostaje 2043 podataka za ovu kolonu.
+
+```{r}
+na_budget <- movies[is.na(movies$budget), ]
+View(na_budget)
+```
+
+Deluje da nema specifičnog obrasca medju podacima koji nedostaju. Nemamo podatke odredjenih kombinacija npr. žanrova ili godina koji nedostaju. Podaci koji nedostaju su dosta raznoliki.
+Brisanje podataka ili popunjavanje sa median/mean mi ne deluje kao dobra opcija zato što je veliki procenat podataka koji nedostaju.
+Bilo bi previše izbrisati oko 2000 redova podataka iz skupa koji ima ~7600. Isto tako koristiti vrednost mean/median za umetanje može dosta da umanji varijansu u podacima.
+Zbog toga sada gledam raspodelu kolone budget i da li postoji mogućnost da na osnovu nje kreiram novu kolonu.
+
+```{r}
+ggplot(data = movies, mapping = aes(x=budget)) + geom_histogram()
+```
+
+Vidimo da je jako mali broj filmova koji imaju budžet veći od 100 miliona (1e+08).
+Zbog ovakve raspodele, upotrebiću FE pristup i kreiraću kategorijsku promenljivu budget_range.
+Ova kolona će imati 6 kategorija i to:
+1. Nedostajuće vrednosti predstavljaju kategoriju za sebe
+2. 0 - 1M
+3. 1 - 10M
+4. 10 - 50M
+5. 50 - 100M
+6. 100M+
+
+```{r}
+movies <- movies %>%
+  mutate(budget_range = case_when(
+    is.na(budget) ~ 'NA',
+    budget >= 0 & budget < 1e6 ~ '0-1M',
+    budget >= 1e6 & budget < 1e7 ~ '1-10M',
+    budget >= 1e7 & budget < 5e7 ~ '10-50M',
+    budget >= 5e7 & budget < 1e8 ~ '50-100M',
+    budget >= 1e8 ~ '100M+'
+  ))
+```
+
+Sada imam kolonu budget_range koju ću dalje da koristim kao zamenu za budget.
+Ovako sada izgleda raspodela po kategorijama:
+
+```{r}
+ggplot(data=movies) + 
+  geom_bar(mapping = aes(x=budget_range, fill=budget_range))
+```
+
+Peta numerička kolona sa nedostajućim vrednostima je gross
+
+```{r}
+sum(is.na(movies$gross))
+```
+
+Isto kao i do sad, zadržaću ove podatke, samo prvo proveravam distribuciju podataka.
+
+```{r}
+ad.test(movies$runtime)
+```
+
+I ovde vidimo da podaci nisu normalno distribuirani. Ponovo koristim medijanu umesto proseka za ovu varijablu.
+
+```{r}
+median.gross <- median(x = movies$gross, na.rm=T)
+median.gross
+
+movies$gross[is.na(movies$gross)] <- median.gross
+
+sum(is.na(movies$gross)) #Provera da li jos uvek ima vrednosti koje nedostaju
+```
+
+KATEGORIJSKE PROMENLJIVE
+
+Pomoću summary funkcije smo saznali da postoje nedostajuće vrednosti ali samo u numeričkim kolonama.
+Za kategorijske moram da proverim da li u kolonama postoje polja koja nemaju vrednost.
+
+sapply funkciju ću da iskoristim kako bih odjednom proverila koje sve kolone imaju prazna polja.
+
+```{r}
+sapply(movies, function(x) {
+  if (is.character(x)) {
+    sum(x == "")
+  } else {
+    NA
+  }})
+```
+
+Ovde vidimo da imamo još vrednosti koje nedostaju i to u kolonama: rating, writer, star, country i company.
+
+
+Promenljiva rating ima 66 praznih polja. Znači da 66 filmova ima "" vrednost za kategoriju filma.
+Ovakve vrednosti ne moraju uvek da znače da vrednosti nedostaju već mogu biti povezane sa vrednostima drugih promenljivih.
+U ovom slučaju mislim da "" kod rating nije posledica ni jedne druge promenljive već nedostajuća vrednost.
+
+Funkcija unique nam daje uvid u jedinstvene vrednosti kategorijske promenljive rating.
+
+```{r}
+unique(movies$rating)
+```
+
+Ovde možemo da vidimo da postoji nepravilnost, a to je da su napravljene dve kategorije za neocenjene filmove (Not Rated i Unrated).
+To možemo da rešimo tako što ćemo ove dve kategorije da objedinimo zato što imaju isto značenje, sve će postati "Unrated".
+Isto radim i sa podacima koji nedostaju u ovoj koloni. Najviše logike ima da pripadaju kategoriji neocenjenih. Zbog toga sada nije toliko važno koliko kojih vrednosti ima kada je već nedostajuća napravljena kao posebna kategorija.
+
+```{r}
+movies$rating[which(movies$rating == "Not Rated")] <- "Unrated"
+
+movies$rating[which(movies$rating == "")] <- "Unrated"
+```
+
+
+Provera nedostajućih za kolonu writer
+
+```{r}
+length(which(movies$writer == ""))
+length(xtabs(~writer, data=movies)) #broj jedinstvenih vrednosti
+(length(which(movies$writer == "")) / 7668) * 100 #procenat nedostajucih u odnosu na ceo skup
+```
+
+Ova kolona takođe ima veliki broj jedinstvenih vrednosti i mali broj onih koji nedostaju u odnosu na celokupan skup, pa ću ih obrisati.
+
+```{r}
+movies = movies[movies$writer != "", ]
+length(which(movies$writer == "")) #Provera da li ih jos uvek ima, tj. da li su stvarno obrisane
+```
+
+Sledeća je kolona star. Pošto je došlo do brisanja nekih redova, u preostalim kolonama moram da proverim da li još uvek ima nedostajućih.
+
+```{r}
+length(which(movies$star == ""))
+length(xtabs(~star, data=movies))
+```
+
+Kolona star ima 1 polje bez vrednosti.Takođe ima veliki broj jedinstvenih vrednosti. 
+Zbog toga se opet odlučujem da obrišem taj koji nedostaje.
+
+```{r}
+movies = movies[movies$star != "", ]
+length(which(movies$star == "")) #Provera da li ih jos uvek ima, tj. da li su stvarno obrisane
+```
+
+Ponovo proveravam broj za kolonu country.
+
+```{r}
+length(which(movies$country == ""))
+length(xtabs(~country, data=movies))
+```
+
+Promenljiva country IMA 1 polje bez vrednosti.
+Ovde postoji 60 jedinstvenih vrednosti što i nije toliko mnogo kao kod prethodnih kolona, pa ću videti da li postoji kategorija/vrednost koja se značajno izdvaja od ostalih.
+
+```{r}
+xtabs(~country, data=movies)
+```
+
+Većina filmova potiče iz United States - 5475, pa ću ovo da koristim kao vrednost umetanja za podatak koji nedostaje.
+
+```{r}
+movies$country[which(movies$country == "")] <- 'United States'
+length(which(movies$country == "")) #Proveravam da li kolona company ima nedostajuce vrednosti
+```
+
+Ostala je još jedna kolona - company.
+
+```{r}
+length(which(movies$company == ""))
+length(xtabs(~company, data=movies))
+```
+
+Kolona company IMA 14 polja bez vrednosti i 2312 jedinstvenih vrednosti.
+
+```{r}
+(length(which(movies$company == "")) / 7668) * 100
+```
+
+Vrednosti koje nedostaju čine 0.18% u odnosu na ceo skup podataka što nije puno.
+Takođe Ima veliki broj jedinstvenih vrednosti pa ću zbog toga obrisati one koji nedostaju.
+
+```{r}
+movies = movies[movies$company != "", ]
+length(which(movies$company == ""))
+```
+
+```{r}
+View(movies)
+```
+
+
+Raspodela podataka po kolonama
+
+U ovom delu ću prikazati raspodelu podataka po kolonama i na taj način saznati nešto više o podacima.
+Omogućava nam da vidimo kako su podaci raspodeljeni za svaku promenljivu, da li postoje izuzeci, itd,..
+
+Kolona Name
+
+Tabela učestalosti za kolonu name
+
+```{r}
+movies %>% group_by(name) %>% summarise(count = n()) %>% arrange(desc(count)) %>% filter(count > 1)
+```
+
+Filtritala sam sve > 1 kako bih videla koji su to filmovi koji se pojavljuju više puta.
+Da li se ponavljaju isti filmovi tj. duplikati i da li je to rezultat neke greške ili su to različiti filmovi.
+
+```{r}
+movies %>% filter(name == "Anna" | name == "Fever Pitch")
+```
+
+Na osnovu ovih podataka deluje da ovu kolonu nema smisla analizirati.
+Svaki film ima drugačiji naziv, a ukoliko postoji više filmova sa istim nazivom radi se o različitim filmovima.
+Možemo videti na primeru filmova "Anna" i "Fever Pitch" da su različiti na osnovu drugih kolona, poput žanra, godine, pisca...
+
+Kolona Rating
+
+Tabela učestalosti za rating kako bismo videli koliko kategorija ima.
+
+```{r}
+xtabs(~rating, movies)
+```
+
+Grafik raspodele filmova prema kategoriji (rating)
+
+```{r}
+  ggplot(data = movies, mapping = aes(x = rating)) + 
+  geom_bar() + 
+  labs(title = "Raspodela podataka kolone rating", x = "rating", y = "count")
+```
+
+Sa grafika možemo da vidimo da najveći broj filmova, oko 3500 ima ocenu "R" koja označava neko ograničenje ("Restricted"), a zatim "PG-13" koju ima nešto više od 2000 filmova. Mnogo manje filmova ima ocenu "G".
+
+U celom skupu imamo 1 film koji ima kategoriju Approved i 1 TV-14. Njihov uticaj na model je minimalan zato što ne daju dovoljno informacija za pouzdan zaključak.
+
+Na osnovu analize značenja kategorija došla sam do zaključka da neke od kategorija mogu da spojim jer su bespotrebno odvojene.
+
+Approved kategorija je zastarela i ranije se koristila kako bi označila filmove koji imaju dozvolu za javno prikazivanje.
+Tako da ovu kategoriju mogu da spojim sa G (General Audiences) koja se odnosi na filmove prikladne za sve uzraste. 
+PG je oznaka da je film prikladan za većinu publike ali da roditelji treba da budu opreziji jer moze sadržati scene nasilja ili nepristojne reči. TV-PG je oznaka da film zahteva roditeljski nadzor.
+Approved, G, PG i TV-PG su kategorije koje predstavljaju sadržaj za sve uzraste tako da svi mogu da budu pod jednom kategorijom npr. PG - zato što svakako svi mogu da gledaju te filmove i sa decom uz opreznost.
+
+PG-13, TV-14 mogu da se spoje u jednu - PG-13. Bilo bi logičnije da spojim u TV-14 jer svakako i deca od 13 godina spadaju u tu kategoriju ali je PG-13 poznata filmska kategorija, a u TV-14 imam samo jedan film tako da mislim da nije toliko bitno.
+
+R (Restricted) može da se spoji sa NC-17 koji je zabranjen osobama mladjim od 17 godina. Isto tako TV-MA (sadržaj namenjen odrasloj publici) i x (zastarela oznaka koja se kasnije transformisala u NC-17).
+
+```{r}
+movies$rating[which(movies$rating == "Approved" | movies$rating == "G" | movies$rating == "TV-PG")] <- "PG"
+movies$rating[which(movies$rating == "TV-14")] <- "PG-13"
+movies$rating[which(movies$rating == "NC-17" | movies$rating == "TV-MA" | movies$rating == "X")] <- "R"
+movies$rating[which(movies$rating == "Not Rated")] <- "Unrated"
+```
+
+Sada grafik izgleda ovako:
+
+```{r}
+  ggplot(data = movies, mapping = aes(x = rating)) + 
+  geom_bar() + 
+  labs(title = "Raspodela podataka kolone rating", x = "rating", y = "count")
+```
+
+Kolona genre
+
+Prikaz učestalosti za genre, kako bismo videli koliko kojih žanrova ima.
+
+```{r}
+xtabs(~genre, data=movies)
+```
+
+
+Grafik raspodele filmova prema žanru (genre)
+
+```{r}
+ggplot(data = movies, mapping=aes(y=genre)) + 
+  geom_bar() + 
+  labs(title = "Raspodela podataka kolone genre", y="genre", x="count") 
+```
+
+Najveći broj filmova je iz kategorija Komedija, Akcija i Drama. To su najbrojnije kategorije sa više od 1500 podataka po kategoriji.
+Možemo da zaključimo da ljudi mnogo manje gledaju filmove koje pripadaju drugim kategorijama (npr. Biografija, Horor, Animacioni).
+Imamo po 1 film za žanrove Music i Sport, 2 za Musical, 3 za Western. Ovde je takodje njihov uticaj na model minimalan zato što ne daju dovoljno informacija za pouzdan zaključak. Mogu da razmotrim da neke od njih spojim u jednu kategoriju kao npr. Music i Musical iako je to i dalje malo podataka.
+
+Ovde bih žanrove Music i Musical mogla da spojim u jedan jer su oba usmerena na muziku, ali ih je mnogo malo i zato ću da ih obrišem kao i Sport i Western. Žanr Fantasy ću pridružiti Sci-Fi, i žanr Romance - Drami, takođe Family i Drama često idu zajedno (porodični često imaju elemente drame koji mogu uključivati međuljudkse odnose, odrastanje i slično).
+
+```{r}
+movies$genre[which(movies$genre == "Sci-Fi")] <- "Fantasy"
+movies$genre[which(movies$genre == "Romance")] <- "Drama"
+movies$genre[which(movies$genre == "Family")] <- "Drama"
+movies = movies[movies$genre != "Music", ]
+movies = movies[movies$genre != "Musical", ]
+movies = movies[movies$genre != "Western", ]
+movies = movies[movies$genre != "Sport", ]
+```
+
+Sada raspodela izgleda ovako:
+
+```{r}
+ggplot(data = movies, mapping=aes(y=genre)) + 
+  geom_bar() + 
+  labs(title = "Raspodela podataka kolone genre", y="genre", x="count") 
+```
+
+
+Kolona year
+
+Tabela učestalosti za year
+
+```{r}
+xtabs(~year, movies)
+```
+
+Grafik raspodele filmova prema godini (year)
+
+```{r}
+ggplot(data = movies, mapping=aes(x=year)) + 
+  geom_histogram(binwidth = 1) + 
+  labs(title = "Raspodela podataka kolone year") + 
+  theme(axis.text.x = element_text(angle=45, vjust=0.5))
+```
+
+Sa grafika mozemo da vidimo da je pre 1985. godine broj filmova rastao iz godine u godinu, što ukazuje na povećanu produkciju tokom tog perioda. Izmedju 1985 - 2020. godine je snimljen približno isti broj filmova (200 po godini).
+Nakon 2020. se moze uočiti pad u broju filmova, može da bude rezultat smanjenja produkcije filmova zbog pandemije COVID-19 koji je značajno uticao i na ovu industriju.
+
+
+```{r}
+movies$decade <- floor(movies$year / 10) * 10
+ggplot(data = movies, mapping = aes(x = decade)) + 
+  geom_histogram(binwidth = 10) + 
+  labs(title = "Raspodela filmova po decenijama") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
+```
+
+Proveriću outliere za ovu numeričku kolonu
+
+```{r}
+boxplot(movies$year, main = "Year Boxplot", horizontal = TRUE)
+```
+
+Sa grafika jasno možemo da vidimo da nema odstupajućih vrednosti u koloni year.
+
+Kolona released
+
+Ova kolona sadrži informacije o datumu(YYY-MM-DD) kada je objavljen film.
+Pregledanjem podataka uočila sam da se godina u koloni year(release year) ne poklapa sa godinom u koloni released(release date).
+Pošto na sajtu sa kog sam uzela dataset nije pisalo ništa o tome, potražila sam informaciju zašto je to tako, pošto nemam dovoljno domenskog znanja da sama zaključim. Zapravo kolona released označava datum kada je film prvi put prikazan u nekoj specifičnoj zemlji, dok kolona year označava godinu kada je film prvi put prikazan, nebitno da li je to festival ili neka posebna projekcija.
+
+Kod promenljive released imamo ogroman broj jedinstvenih vrednosti, tačnije 3415 što je skoro polovina svih podataka.
+Pošto je u pitanju datum objavljivanja, normalno je da je većina filmova objavljena drugog datuma pogotovo što je period od 30 godina u pitanju.
+
+Kolona score
+
+Statistika za score
+
+```{r}
+summary(movies$score)
+```
+
+Raspon vrednosti u ovoj koloni je od 1.9 do 9.3.
+
+Grafik raspodele filmova prema oceni na IMDb-u (score)
+
+```{r}
+ggplot(data = movies, mapping=aes(x=score)) + 
+  geom_bar() + 
+  labs(title = "Raspodela podataka kolone score")
+```
+
+Možemo da vidimo da mali broj filmova ima najviše i najniže ocene. Najveći je broj onih filmova koji ima ocenu izmedju 6 i 7.
+
+Zbog malog broj filmova u rasponu 0-5 ovo bi moglo da predstavlja kategoriju za sebe. Isto i za filmove za ocenom preko 8.
+Ovde bi mogao da se iskoristi Feature Engineering (FE) pristup za kreiranje nove promenljive na osnovu ovih ocena ali sačekaću da vidim u nastavku analize kakav odnos score ima sa gross.
+
+
+Proveriću outliere za ovu numeričku kolonu
+
+```{r}
+boxplot(movies$score, main = "Score Boxplot", horizontal = TRUE)
+```
+
+Filmovi sa ocenama nižim od 4 i višim od 9 izlaze iz okvira uobičajenih vrednosti.
+Ovi filmovi se retko pojavljuju pa su prepoznati kao izuzeci.
+Ali to ne znači da su ove ocene nemoguće u stvarnosti.
+Za konačno kreiranje modela mislim da je značajno imati raznolike podatke koji u ovom slučaju ne moraju nužno da ukazuju na niže prihode zbog niskih ocena. Isto tako skroz je realno da ima filmova koji se ljudima manje ili vise sviđaju.
+
+Kolona votes
+
+Statistika za votes
+
+```{r}
+summary(movies$votes)
+```
+
+Raspon vrednosti u ovoj koloni je od 7 do 2400000.
+
+Grafik raspodele filmova prema broju glasova (votes)
+
+```{r}
+ggplot(data=movies, mapping=aes(x=votes)) + geom_histogram(binwidth = 100000) + labs(title = "Raspodela podataka kolone votes")
+```
+
+Najveći broj filmova ima manje od 500 000 glasova. Distribucija je asimetrična što u ovom slučaju ukazuje na to da postoji veći broj filmova sa manjim brojem glasova i mali broj filmova koji imaju baš veliki broj glasova. 
+Na osnovu ovog grafika se vidi da postoje izuzeci - veliki broj glasova.
+
+Proveravam iz kojih godina su ovi filmovi i da li je starost filma povezana sa brojem glasova.
+
+```{r}
+movies_out = movies %>% filter(votes > 500000)
+movies1 <- movies_out %>% group_by(year) %>% summarise(num_of_movies=n())
+
+ggplot(data=movies1, mapping=aes(x=year, y=num_of_movies)) + 
+  geom_bar(stat="identity") + 
+  labs(title = "Broj filmova prema broju glasova po godinama")
+```
+
+Sa grafika možemo da vidimo da to što filmovi dugo postoje nema veze sa njihovim brojem glasova, zapravo stariji filmovi imaju manji broj glasova u odnosu na novije.
+
+
+Proveriću outliere za ovu numeričku kolonu
+
+```{r}
+boxplot(movies$votes, main = "Votes Boxplot", horizontal = TRUE)
+```
+
+```{r}
+movies %>% transmute(name, votes, z_score = (votes-mean(votes))/sd(votes)) %>% filter(abs(z_score) > 3.0)
+```
+
+Iako se u ovom skupu podataka nalazi 175 filmova sa ekstremnim vrednostima broja glasova, te podatke ne treba zanemariti.
+Popularnost filmova može da varira, pa veći broj glasova može da ukazuje na veću popularnost koja može doprineti visokom prihodu.
+
+
+Kolona director
+
+
+```{r}
+length(xtabs(~director, movies))
+```
+
+Tabela učestalosti za director
+
+Veliki je broj jedinstvenih vrednosti za direktora pa sam filtrirala sve one veće od 15 kako bi bilo moguće videti nešto sa grafika.
+
+```{r}
+movies_by_director = movies %>% group_by(director) %>% summarise(count = n()) %>% arrange(desc(count)) %>% filter(count > 15)
+movies_by_director
+```
+
+Grafik raspodele filmova prema direktoru filma (director)
+
+```{r}
+  ggplot(data = movies_by_director, mapping=aes(x=director, y=count)) + 
+  geom_col()+
+  theme(axis.text.x = element_text(angle= 90, hjust=1)) + 
+  labs(title = "Raspodela podataka kolone director", x = "director", y = "count")
+```
+
+Ovde na filtriranom grafiku možemo da vidimo direktore sa najvećim brojem filmova. Medju njima se izdvaja Woody Allen sa 38 filmova. Ove informacije mi ne znače puno, baš zbog velikog broja različitih direktora. Ne deluje kao da bi nesto moglo da se zaključi sa grafika korelacije gross~director zbog velikog broja različitih podataka.
+
+
+Kolona writer
+
+```{r}
+length(xtabs(~writer, movies))
+```
+
+Tabela učestalosti za writer
+
+```{r}
+movies_by_writer = movies %>% group_by(writer) %>% summarise(count = n()) %>% arrange(desc(count)) %>% filter(count > 10)
+movies_by_writer
+```
+
+Veliki je broj pisaca i filtrirala sam sve one koji su napisali vise od 10 filmova kako bi bilo moguće videti nešto sa grafika.
+
+Grafik raspodele filmova prema piscu (writer)
+
+```{r}
+  ggplot(data = movies_by_writer, mapping=aes(x=writer, y=count)) + 
+  geom_col()+
+  theme(axis.text.x = element_text(angle= 90, hjust=1)) + 
+  labs(title = "Raspodela podataka kolone writer", x = "writer", y = "count")
+```
+
+Ovde takođe možemo videti da Woody Allen dominira po broju filmova.
+Sve što sam zaključila za director kolonu važi i ovde. Previše je različitih vrednosti da bi moglo nešto da se vidi za kasnije.
+
+
+Kolona star
+
+```{r}
+length(xtabs(~star, movies))
+```
+
+Tabela učestalosti za star
+
+```{r}
+movies_by_star = movies %>% group_by(star) %>% summarise(count = n()) %>% arrange(desc(count)) %>% filter(count > 30)
+movies_by_star
+```
+
+Veliki je broj zvezda i filtrirala sam sve one koji su glumili u više od 30 filmova kako bi bilo moguće videti nešto sa grafika.
+
+Grafik raspodele filmova prema zvezdi filma (star)
+
+```{r}
+  ggplot(data = movies_by_star, mapping=aes(x=star, y=count)) + 
+  geom_col()+
+  theme(axis.text.x = element_text(angle= 90, hjust=1)) + 
+  labs(title = "Raspodela podataka kolone star", x = "star", y = "count")
+```
+
+Ono što možemo da vidimo da se najveće svetske zvezde nalaze u ovih top 10 glumaca sa najvećim brojem filmova.
+Ovde isto ima veliki broj jedinstvenih vrednosti, slično kao kod prethodne sve kolone: director i writer.
+
+
+Kolona country
+
+Tabela učestalosti za country
+
+```{r}
+by_country = movies %>% 
+  group_by(country) %>% 
+  summarise(count = n()) %>% 
+  mutate(percentage = round((count/nrow(movies)*100),2)) %>% 
+  arrange(desc(count))
+
+by_country
+```
+
+Grafik raspodele filmova prema zemlji iz kojih potiču (country)
+
+```{r}
+  ggplot(data = by_country, mapping=aes(x=country, y = count)) + 
+  geom_col()+
+  theme(axis.text.x = element_text(angle= 90, hjust=1)) + 
+  labs(title = "Raspodela podataka kolone country", x = "country", y = "count")
+```
+
+Najveći broj snimljenih filmova potiče iz Amerike, što ukazuje na dominantnost američke filmske industrije, verovatno zbog Hollywood-a.
+Nakon toga Ujedinjeno Kraljevstvo i to sa mnogo manjim brojem filmova u odnosu na Ameriku.
+Zemlje poput Francuske, Kanade i Nemačke su takođe prisutne ali sa znatno manjim udelom doprinose filmskoj industriji u okviru ovog skupa podataka. 
+Ovde imamo 12 država iz kojih dolazi samo jedan film, 9 iz kojih dolaze samo dva filma, ovakvi podaci nisu od neke koristi pri kreiranju modela, pogotovo što je ovde u više kolona slična situacija.
+
+Napraviću novu kolonu country_group i grupisaću države prema USA, EU i Ostale. Na taj način će ova kolona možda biti korisnija za model i rešiću problem velikog broja kategorija koji ima po jednu ili dve vrednosti.
+
+```{r}
+movies$country_group = ifelse(movies$country %in% c("United States"), "USA",ifelse(movies$country %in% c("United Kingdom", "France", "Germany", "Italy", "Spain", "Ireland", "Denmark", "Sweden", "Norway", "Netherlands", "West Germany", "Switzerland", "Belgium", "Czech Republic", "Russia", "Austria", "Hungary", "Poland", "Finland", "Yugoslavia", "Federal Republic of Yugoslavia", "Portugal", "Greece", "Malta", "Republic of Macedonia", "Romania", "Serbia", "Soviet Union"), "EU", "Other"))
+View(movies)
+```
+
+Sada grafik izgleda ovako:
+
+```{r}
+  ggplot(data = movies, mapping=aes(x=country_group, fill=country_group)) + 
+  geom_bar()+
+  theme(axis.text.x = element_text(angle= 90, hjust=1)) + 
+  labs(title = "Raspodela podataka kolone country", x = "country", y = "count")
+```
+
+Kolona company
+
+```{r}
+length(xtabs(~company, movies))
+```
+
+Tabela učestalosti za company
+
+```{r}
+movies_by_company <- movies %>% group_by(company) %>% summarise(count = n()) %>% arrange(desc(count)) %>% filter(count > 90)
+movies_by_company
+```
+
+Grafik raspodele filmova prema produkcijskoj kući(company). Filtrirala sam one sa najvećim brojem filmova kako bih videla nešto na grafiku.
+
+```{r}
+  ggplot(data = movies_by_company, mapping=aes(x=company, y=count)) + 
+  geom_col()+
+  theme(axis.text.x = element_text(angle= 45, hjust=1)) + 
+  labs(title = "Raspodela podataka kolone company", x = "company", y = "count")
+```
+
+Najproduktivnije kompanije su: "Universal Pictures", "Warner Bros.","Columbia Pictures", "Paramount Pictures".
+
+Na osnovu domenskog znanja je poznato da filmovi koji pripadaju velikim produkcijskim kućama često donose veće prihode.
+Pošto se u ovom skupu podataka nalazi veliki broj različitih produkcijskih kuća (2381) teško je doneti neke zaključke.
+Pošto ovo deluje kao jedan od važnih prediktora napraviću novu kolonu na osnovu kolone company koja će da ima kategorije vezane za to da li film pripada nekoj poznatoj produkcijskoj kući ili ne.
+Potražila sam informaciju o najpoznatijim produkcijskim kućama na svetu i to su: "Warner Bros.", "Walt Disney", "Pixar Animation", "Universal Pictures", "Marvel Studios", "MGM Studios", "Lionsgate", "Sony Pictures", "Paramount Pictures Studios", "DreamWork Studios", "20th Century Fox", "Weinstein", "Columbia Pictures".
+
+```{r}
+movies$company_group = ifelse(grepl("Warner Bros\\.|Walt Disney|New Line Cinema|Pixar Animation Studios|Universal|Marvel|MGM|Lionsgate|Sony Pictures|Paramount|Dreamworks|Twentieth Century Fox|The Weinstein Company|Columbia Pictures", movies$company, ignore.case = TRUE), "Large Company", "Other")
+View(movies)
+```
+
+Sada grafički mozemo da vidimo raspodelu onih koji pripadaju navedenim velikim produkcijskim kućama i ostalih
+
+```{r}
+  ggplot(data = movies, mapping=aes(x=company_group, fill=company_group)) + 
+  geom_bar()+
+  theme(axis.text.x = element_text(angle= 45, hjust=1)) + 
+  labs(title = "Raspodela podataka kolone company", x = "company", y = "count")
+```
+
+Kategorija 'Other' sadrži mnogo veći broj filmova od kategorije 'Large'.
+Ali zato najveći broj filmova potiče upravo iz velikih produkcijskih kuća (mnogo je veliki broj onih kuća iz skupa ostalih koji imaju po 1, 2, 3 filma).
+
+
+Kolona runtime
+
+Statistika za runtime
+
+```{r}
+summary(movies$runtime)
+```
+
+Vreme trajanja filma iznosi između 63 i 366 minuta.
+
+Grafik raspodele filmova prema dužini trajanja filma (runtime)
+
+```{r}
+  ggplot(data = movies, mapping=aes(x=runtime)) + 
+  geom_bar()+
+  theme(axis.text.x = element_text(angle= 45, hjust=1)) + 
+  labs(title = "Raspodela podataka kolone runtime", x = "runtime", y = "count")
+```
+
+Najčešća dužina trajanja filma je oko 100 minuta. Većina filmova traje između 95 i 120 minuta i to je neka standardna dužina trajanja filmova koja bi zadržala pažnju publike. Distribucija je asimetrična što u ovom slučaju ukazuje na to da postoji veći broj filmova kraćih trajanja i mali broj filmova koji dugo traju. 
+
+
+Proveriću outliere za ovu numeričku kolonu
+
+```{r}
+boxplot(movies$runtime, main = "Boxplot Runtime", horizontal = TRUE)
+```
+
+
+```{r}
+movies %>% transmute(name, runtime, z_score = (runtime-mean(runtime))/sd(runtime)) %>% filter(abs(z_score) > 3.0)
+```
+
+U ovom skupu podataka filmovi sa dužinom većom od 164 minuta smatraju se ekstremnim vrednostima.
+Standardna dužina trajanja filma kreće se između 90 i 150 minuta ali trajanje značajno može da varira od žanra. Neki filmovi poput istorijskih ili dokumentaraca mogu da traju veoma dugo, čak i do 600 minuta. U ovom skupu podataka postoji mali broj filmova koji pripadaju ovim žanrovima zbog čega su ove vrednosti verovatno prepoznate kao izuzeci. Duže trajanje filma je karakteristika nekih žanrova.
+
+
+Raspodela podataka izlazne kolone ~ gross
+
+Statistika kolone gross
+
+```{r}
+summary(movies$gross)
+```
+
+U skupu podataka prihodi se kreću od 309 do 2 847 000 000.
+
+Grafički prikaz raspodele
+
+```{r}
+ggplot(data=movies, mapping=aes(x=gross)) + 
+  geom_histogram() +
+    labs(title = "Raspodela podataka kolone gross", x = "gross", y = "count")
+```
+
+ANALIZA PODATAKA
+
+Analiza odnosa izmedju prediktora i odgovora
+
+Kolona Rating
+
+Grafikom ispod je prikazan odnos između kategorije filma i prihoda.
+
+```{r}
+ggplot(data = movies, mapping = aes(x = rating, y = gross)) +
+  geom_boxplot() +
+  labs(title = "Distribucija prihoda prema oceni", x = "Rating", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Filmove sa kategorijom PG-13 karakteriše najširi raspon prihoda.
+Filmovi sa kategorijom PG-13 i PG imaju medianu koja je viša u poređenju sa ostalim kategorijama, što znači da ti filmovi u proseku ostvaruju veće prihode.
+Medijana kod R je nešto niža nego kod PG-13, što može značiti da, iako neki filmovi sa kategorijom R ostvaruju veliki prihod, u proseku su filmovi sa kategorijom PG-13 uspešniji.
+Filmove iz kategorije PG-13 mogu da gledaju deca, pa se ovakvi filmovi puštaju u svako doba dana i dostupniji su široj populaciji. Za razliku od njih R filmovi se obično puštaju uveče pa imaju i manju gledanost.
+
+Zaključak je da kolona rating moze biti značajan faktor u modelu predikcije prihoda.
+
+
+Kolona genre
+
+Grafikom ispod je prikazan odnos između žanra filma i prihoda.
+
+```{r}
+ggplot(data = movies, mapping = aes(x = genre, y = gross)) +
+  geom_boxplot() +
+  labs(title = "Distribucija prihoda prema zanru", x = "Genre", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Filmovi sa žanrom Action imaju najširi raspon prihoda što sugeriše da mogu imati veoma visoke ali i niske prihode.
+Animation ima medijanu koja je viša u poređenju sa ostalim žanrovima, što znači da ovi filmovi u proseku ostvaruju veće prihode od drugih. Disney filmovi su Animacioni i logično je da takvi filmovi zarađuju više zbog popularnosti.
+Nasuprot tome, žanrovi poput Drama i Horor imaju niže medijane prihoda i manji raspon što ukazuje da filmovi iz ovih žanrova ostvaruju skromnije prihode.
+
+Zaključak je da kolona genre takođe može biti značajan faktor u modelu predikcije prihoda.
+
+
+Kolona year
+
+Grafički prikaz odnosa između prihoda filmova prema godinama (Year)
+
+```{r}
+ggplot(data = movies, mapping = aes(x = year, y = gross)) +
+  geom_point() +
+  labs(title = "Distribucija prihoda prema godini", x = "Year", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Kako se približavamo novijim godinama vidi se porast u prihodima filmova. Pre 2000. godine većina filmova ima niže prihode, dok su posle 2000. godine filmovi dostizali veće prihode.
+Ovo ukazuje na postojanje korelacije između godine proizvodnje i prihoda filma.
+Sa grafika možemo da vidimo i da se nakon 2000. pojavljuju filmovi sa izuzetno velikim prihodima, primer mogu da budu "blockbuster" filmovi sa velikim budžetima.
+Vidi se da nakon 2010. godine postoji značajan porast u prihodima, na šta su možda uticali neki dodatni faktori.
+
+
+Kolona score
+
+Grafikom ispod je prikazan odnos između ocene sa IMDb-a i prihoda.
+
+```{r}
+ggplot(data = movies, mapping = aes(x = score, y = gross)) +
+  geom_point() +
+  labs(title = "Distribucija prihoda prema oceni sa IMDb-a", x = "Score", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Ovde možemo da zaključimo da filmovi sa većim ocenama imaju i veće prihode. Isto tako i filmovi sa većim ocenama imaju veće skokove u prihodima (ekstremne vrednosti).
+
+Iskoristicu Feature Engineering (FE) pristup da kreiram novu kolonu zasnovanu na postojećoj koloni score.
+Ovo može potencijalno da doprinese poboljšanju performansi modela jer omogućava transformacije koje bolje opisuju relacije u podacima.
+
+Na osnovu stanja sa grafika se vidi da se sa povećanjem score-a povećava i prihod. Nije bitno da li je score 1, 2, 3 ili 4 zato što se svakako očekuje mala zarada. To nije slučaj od 4 do 8 zato što se tu razlikuje zarada.
+
+
+```{r}
+movies <- movies %>%
+  mutate(score_range = case_when(
+    score >= 0 & score < 4.5 ~ '0 - 4.5',
+    score >= 4.5 & score < 5.5 ~ '4.5 - 5.5',
+    score >= 5.5 & score < 6.5 ~ '5.5 - 6.5',
+    score >= 6.5 & score < 7.5 ~ '6.5 - 7.5',
+    score >= 7.5 & score < 8.5 ~ '7.5 - 8.5',
+    score >=8.5 ~ '8.5+',
+  ))
+View(movies)
+```
+
+```{r}
+  ggplot(data = movies, mapping=aes(x=score_range)) + 
+  geom_bar() + 
+  labs(title = "Raspodela podataka kolone score", x="score_range") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Nakon transformacije kolone, grafik izgleda ovako:
+
+```{r}
+ggplot(data = movies, mapping = aes(x = score_range, y = gross)) +
+  geom_boxplot() +
+  labs(title = "Distribucija prihoda prema oceni sa IMDb-a", x = "Score_range", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Ovde sad možemo da zaključimo da najveći raspon prihoda imaju filmovi sa ocenom između 7.5-8.5, dok zapravo filmovi sa ocenom većom od 8.5 u proseku imaju najveći prihod.
+
+
+Kolona votes
+
+Grafikom ispod je prikazan odnos između broja glasova filma i prihoda.
+
+```{r}
+ggplot(data = movies, mapping = aes(x = votes, y = gross)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, col="pink", formula="y~x") +
+  labs(title = "Distribucija prihoda prema broju glasova", x = "Votes", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Roze linija na grafiku koja predstavlja linearnu regresiju pokazuje da veći broj glasova može biti povezan sa većim prihodima. Ali rasipanje podataka je značajno i većina podataka se nalazi u donjem delu grafika.  Na osnovu domenskog znanja mogu da kažem da je očekivano da su filmovi sa više glasova popularniji i obično imaju i veće prihode. Isto tako neki filmovi sa malim brojem glasova mogu ostvariti velike prihode.
+
+Zaključak je da može biti jedan od faktora koji će učestvovati u kreiranju modela.
+
+
+Kolone director, writer i star imaju ogroman broj jedinstvenih kategorija i na grafiku odnosa sa prihodom ne može ništa da se zaključi. Na osnovu domenskog znanja, kolona star bi mogla da bude značajna zato što filmovi u kojima glume najpoznatije svetske zvezde su sigurno i među najpopularnijim što dovodi do velkih prihoda. 
+
+
+Kolona country
+
+Grafikom ispod je prikazan odnos između zemlje porekla filma i prihoda.
+
+```{r}
+ggplot(data = movies, mapping = aes(x = country, y = gross)) +
+  geom_boxplot() +
+  labs(title = "Distribucija prihoda prema drzavi iz koje poticu filmovi", x = "Country", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Najveće prihode očekivano ostvaruje Amerika. Razlog tome može da bude to sto najveće produkcijske kuće dolaze upravo iz Amerike. Takođe Amerika je centar filmske industrije, tu je i Holivud. Očigledno da velika ulaganja koja produkcijske kuće mogu da obezbede donose i velike prihode. Nakon Amerike tu je i Engleska. Neki od najpopularnijih filmova dolaze upravo iz ove zemlje kao npr. Hari Poter.
+
+Kolona budget_range
+
+Grafikom ispod je prikazan odnos izmedju budžeta filma i prihoda.
+
+```{r}
+ggplot(data = movies, mapping = aes(x = budget_range, y = gross)) +
+  geom_boxplot() +
+  labs(title = "Distribucija prihoda prema kategorijama budzeta", x = "Budget_range", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Ovde jasno mozemo da vidimo da filmovi sa budžetima preko 100M+ imaju najveće prihode. Prihodi kategorije budžeta 100M+ se dosta razlikuju od ostalih kao i medijana koja je najveća. U proseku ovi filmovi donose najveće prihode. Tu se nalaze i filmovi sa najvećim prihodima (ekstremne vrednosti) i to može ukazivati na blockbuster-e recimo, ne mora da znači da su izuzeci.
+
+Ovaj prediktor može da bude značajan pri kreiranju modela pored još nekih faktora.
+
+
+Kolona company
+
+Grafikom ispod je prikazan odnos između produkcijske kuće i prihoda.
+
+```{r}
+movies_by_company <- movies %>% 
+  group_by(company) %>% 
+  mutate(count = n()) %>% 
+  filter(count > 90)
+
+ggplot(data = movies_by_company, mapping = aes(x = company, y = gross)) +
+  geom_boxplot() +
+  labs(title = "Distribucija prihoda prema produkcijskoj kuci", x = "Company", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+
+```{r}
+ggplot(data = movies, mapping = aes(x = company_group, y = gross)) +
+  geom_boxplot() +
+  labs(title = "Distribucija prihoda prema produkcijskoj kuci", x = "Company", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Sa grafika mozemo da vidimo da veće kompanije zapravo ostvaruju veće prihode iako je broj takvih filmova manji. Kod većih produkcijskih kuća je veća medijana što znači da je prosečna zarada ovih filmova veća u odnosu na "ostale" filmove. Isto tako kod većih kompanija imamo više vrednosti koje "odskaču" iz skupa i može ukazivati na blockbuster-e koje su karakteristične za ovakve produkcije (npr. filmovi kao sto su Harry Poter, Deadpool, Hobbit, Diznijevi filmovi...) .
+
+Kolona runtime
+
+Grafikom ispod je prikazan odnos između dužine trajanja filma i prihoda.
+
+```{r}
+ggplot(data = movies, mapping = aes(x = runtime, y = gross)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula="y~x", se=FALSE, col="pink") +
+  labs(title = "Distribucija prihoda prema duzini trajanja filma", x = "Runtime", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Na ovom grafiku izgleda kao da nema jasne korelacije između dužine trajanja filma i prihoda.
+
+
+
+Multivarijantna analiza
+
+Ovde ću pokušati da pronađem povezanost između više kolona na osnovu dosadašnje analize.
+
+Povezanost između rating i genre
+
+```{r}
+ggplot(data = movies, mapping=aes(x=rating, fill=genre)) + 
+  geom_bar(position = "stack") + 
+  labs(title = "Raspodela filmova prema kategoriji i zanru", x = "rating", y = "genre") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Generalno se vidi raznolikost žanrova u svim kategorijama. Unutar R kategorije se nalazi žanr koga nema kod drugih npr. Romance. I kod PG kategorije je manja zastupljenost akcionih filmova, kao i Horora i Misterije.
+
+
+Povezanost između genre i budget
+
+```{r}
+ggplot(data = movies, mapping=aes(x=genre, fill=budget_range)) + 
+  geom_bar(position = "stack") + 
+  labs(title = "Raspodela filmova prema zanru i budzetu", x = "genre", y = "budget") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Budžet od 100+ miliona je zastupljen samo kod određenih žanrova: akcije, avanture i animacije. Ostalo je raznoliko. Uglavnom je najzastupljeniji srednji budžet: 10-50  miliona.
+Veza između ova dva prediktora može da bude značajna.
+
+
+Povezanost između zanra, budžeta i prihoda
+
+```{r}
+ggplot(data = movies, mapping=aes(x=genre, y=gross)) + 
+  geom_boxplot() + 
+  labs(title = "Raspodela prihoda filmova prema zanru i budzetu", x = "genre", y = "gross") +
+  facet_wrap(~budget_range) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Najmanje prihode imaju filmovi svih žanrova sa budžetom do 10 miliona, dok najveće prihode imaju filmovi: akcija, avantura, animacija sa budžetom preko 100 miliona.
+Ova veza, između ova tri prediktora je značajna.
+
+
+Povezanost između godine, budžeta i prihoda
+
+```{r}
+ggplot(data = movies, mapping = aes(x = year, y = gross, color=budget_range)) +
+  geom_point(alpha=0.6) +
+  labs(title = "Distribucija prihoda prema godini i budzetu", x = "Year", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_colour_brewer(palette = "Set1")
+```
+
+Ovde možemo da zaključimo da filmovi sa budžetom preko 100 miliona počinju da postaju prisutni nakon 2000. godine i ti filmovi uglavnom ostvaruju veće prihode. Ovo može da ukazuje na vezu većih budžeta sa potencijalno većim prihodima.
+Broj filmova sa visokim prihodima se povećava nakon 2000. godine, dok pre toga možemo da vidimo malo ujednačeniju raspodelu. Moguće je da su neki faktori poput marketinga ili boljih tehnologija doprinele tome.
+Filmovi sa budžetom ispod 10 miliona (plave tačke) obično ostvaruju niže prihode i ograničeni su na mogućnost ostvarivanja velikih prihoda.
+
+Zaključak: Očigledno je da budžet igra značajnu ulogu u predviđanju prihoda filma. Budget i year zajedno mogu da budu značajni za model.
+
+
+Povezanost između score i votes
+
+```{r}
+ggplot(data = movies, mapping = aes(x = score_range, y=votes, col=score_range)) +
+  geom_point() +
+  labs(title = "Distribucija prema oceni i glasovima", x = "score_range", y = "votes") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+```
+
+U grafik iznad sam dodatno ubacila i prihod (gross).
+
+```{r}
+ggplot(data = movies, mapping = aes(x = votes, y=gross, col=score_range)) +
+  geom_point() +
+  labs(title = "Distribucija prihoda filma prema oceni i glasovima", x = "votes", y = "gross") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_colour_brewer(palette = "Set1")
+```
+
+Najpopularniji filmovi, sa najvećim ocenama imaju i najveći broj glasova.
+Ova dva grafika su takođe značajna, pokazuju nam da postoji povezanost između broja glasova i ocene.
+
+
+Povezanost između budget, votes i gross
+
+```{r}
+ggplot(data = movies, mapping = aes(x = votes, y = gross, col=budget_range)) +
+  geom_point(alpha=0.6) +
+  labs(title = "Distribucija prihoda filmova prema glasovima i produkcijskoj kuci i budzetu", x = "Votes", y = "Gross") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_colour_brewer(palette = "Set1") +
+  facet_wrap(~company_group)
+```
+
+Filmovi sa većim budžetom (preko 100 miliona) uglavnom ostvaruju veće prihode i imaju više glasova posebno kod velikih kompanija.
+
+```{r}
+ggplot(data=movies, mapping = aes(x=company_group, y=gross, col=budget_range)) + 
+  geom_boxplot() +   
+  labs(title = "Distribucija filmova u kompanijama prema budzetu i prohodu", x = "Company", y = "Gross") + 
+  theme(axis.text.x = element_text(angle= 90, hjust=1)) 
+```
+
+Ovi rezultati potvrđuju dominaciju velikih produkcionih kuca u filmskoj industriji, dok manje kompanije verovatno imaju manji tržišni udeo.
+
+
+Zaključak na osnovu celokupne analize
+
+Na osnovu svih dosadašnjih analiza došla sam do zaključka da kolona prihod zavisi od nekoliko bitnih kolona kao što su budget, votes, genre, year i company. Kolone budget i votes deluju veoma bitno za predviđanje prihoda, pogotovo u korelaciji sa drugim kolonama, npr. budget~year, budget~genre, votes~score_range.
+Primetila sam trend da su neki žanrovi poput akcije, drame i komedije popularniji od drugih, da isto tako imaju veće budžete i veće prihode. Isto tako u filmsku industriju je krenulo više da se ulaže nakon 2000. godine kada može da se primeti značajniji rast u prihodima filma, posebno nakon 2010. godine. Razlozi tome su mnogobrojni poput razvoja tehnologija, marktetinga, itd... Važan faktor je i produkcijska kuća. Velike produkcijske kuće imaju više novca da ulažu u budžet filma, pa su oni najpopularniji sa najvećim prihodom zapravo oni koji potiču iz velikih kompanija. Manje produkcijske kuće imaju manji udeo na tržištu i manju zaradu pa tako i manje budžete.
+Još jedna bitna činjenica je da u ovom skupu podataka najviše filmova potiče iz Amerike što je očekivano jer je ona centar filmske industrije. Ovo su neki od bitnijih prediktora koje sam dobila kombinacijom domenskom znanja i analize grafika.
+U nastavku ću videti koliko dobar model može da se napravi.
+
+
+Korelaciona matrica
+
+```{r}
+cor_matrix <- cor(select_if(movies, is.numeric))
+cor_matrix
+```
+
+Korelaciona matrica omogućava prikaz korelacija između numeričkih kolona.
+Na osnovu korelacione matrice može da se uoči korelacija između votes i gross ~63%, dok sa ostalim kolonama gross ima korelaciju ispod 30% što nije dobra korelacija.
+
+
+Kreiranje modela
+
+Prvo pripremam podatke tako što kategorijske promenljive pretvaram u factor.
+
+```{r}
+movies$rating = factor(movies$rating)
+movies$genre = factor(movies$genre)
+movies$budget_range = factor(movies$budget_range)
+movies$score_range = factor(movies$score_range)
+movies$company_group = factor(movies$company_group)
+movies$country_group = factor(movies$country_group)
+
+movies$director = factor(movies$director)
+movies$writer = factor(movies$writer)
+movies$star = factor(movies$star)
+```
+
+
+Podela podataka na train:test skup u odnosu 80:20. Stratifikacija na osnovu kolone budget_range.
+
+```{r}
+set.seed(123)
+trainIndex <- createDataPartition(movies$budget_range, p = 0.8, list = FALSE)
+
+train <- movies[trainIndex, ]
+test <- movies[-trainIndex, ]
+```
+
+
+Linearna regresija
+
+Za početak ću koristiti samo kolone budget_range i votes jer na osnovu dosadašnje analize deluju najbitnije.
+
+```{r}
+lm.fit1 = lm(gross ~ budget_range + votes, data = train)
+summary(lm.fit1)
+```
+
+Tačnost modela iznosi ~59% što i nije tako dobar rezultat, opisuje nešto više od polovine varijanse u podacima. Model greši za 101 700 000 jedinica što ukazuje na to da treba uključiti i druge promenljive kako bi bolje objašnjavao podatke.
+
+
+Ostale numeričke kolone pokazuju slabu korelaciju sa gross i to smo videli pomoću korelacione matrice.
+Zato ću dodati neku kategorijsku promenljivu da vidim kako će se model ponašati.
+Na osnovu prethodne analize kolone genre, score_range i company mogu imati uticaj na prihod.
+
+
+```{r}
+lm.fit2 = lm(gross ~ votes + budget_range + score_range, data = train)
+summary(lm.fit2)
+```
+
+Dodavanjem prediktora score_range model se minimalno poboljšao ~61%.
+Ono što primećujem je da Adjusted R-squared sve vreme prati Multiple R-squared što je bitno kako ne bi došlo do overfitting-a.
+F-statistika > 1, p-vrednost < 0.5 Znači da postoji povezanost između prediktora i odgovora.
+RSE: 98620000 pokazuje da je greška predviđanja modela velika u odnosu na raspon prihoda
+
+Dodavanjem ostalih promenljivih u model (tj. bez writer, director, star, released, jer imaju ogroman broj kategorija) dobije se minimalno poboljšanje modela, skoro da ga nema. Zbog toga ću pokušati da upotrebim neke druge modele.
+
+```{r}
+par(mfrow=c(2,2))
+plot(lm.fit1)
+```
+
+Analiza dobijenih grafika:
+
+Residuals vs Fitted - služi za proveru pretpostavki linearnog odnosa, horizontalna linija bez jasnih obrazaca je dobar pokazatelj.
+Ovde možemo da vidimo da su podaci uglavnom raspoređeni oko horizontalne linije ali su vrlo zbijeni.
+
+Normal Q-Q - služi za ispitivanje da li se reziduali normalno distribuiraju. Dobro je ukoliko prate isprekidanu liniju. Na grafiku ovog modela se vide odstupanja, pa raspodela očigledno nije normalna. Razlog tome može biti veliki broj ekstremnih vrednosti.
+
+Scale-Location - služi za proveru homogenosti varijanse reziduala. Horizontalna linija sa jednako raspršenim tačkama je pokazatelj dobrog reziduala. Na grafiku se vidi da su skupljene tačke između 0.0e+00 i 2.0e+08, i da linija nije horizontalna što znači da varijansa reziduala nije konstantna.
+
+Residuals vs Leverage - ovaj grafik služi za identifikaciju ekstremnih vrednosti koje mogu da utiču na rezultate.
+Na ovom grafiku se nalaze tačke sa ekstremnim vrednostima: 7446, 2444, 5446
+
+
+Decision tree
+
+Stablo odlučivanja može efikasno da opiše nelinarne odnose pa ću u nastavku napraviti nov model.
+
+Kategorijski podaci su vec pretvoreni u factor promenljive pre linearne regresije.
+Kolone koje imaju veliki broj kategorija: name, director, writer, star i released ne uključujem u model.
+
+```{r}
+lm.fit3 <- rpart(gross ~ rating + genre + year + votes + runtime + budget_range + score_range + company_group + country_group,  method = "anova", data = train) 
+lm.fit3
+```
+
+
+```{r}
+summary(lm.fit3) 
+```
+
+Variable importance
+budget_range        votes  score_range      runtime       rating         year        genre 
+          54           29            5            4            3            2            2 
+          
+Na osnovu ovoga možemo da vidimo koje su kolone bitne u modelu. Veći broj znači da je kolona bitnija za model - budget_range je najvažnija, dok je country_group najmanje važna kolona. Na osnovu grafika mogu da vidim da je stablo u kreiranje modela uključilo kolone: budget_range, votes, genre i year.
+
+
+Sada koristim metrike MAE, MSE i RMSE za procenu performansi modela.
+
+```{r}
+predictions <- predict(lm.fit3, test)
+
+mae <- mean(abs(predictions-test$gross))
+mse <- mean((predictions-test$gross)^2)
+rmse <-sqrt(mse)
+r2 <- 1- (sum((test$gross - predictions)^2) / sum((test$gross-mean(test$gross))^2))
+
+cat("MAE:", mae, "\n")
+cat("MSE:", mse, "\n")
+cat("RMSE:", rmse, "\n")
+cat("R2:", r2, "\n")
+```
+
+MAE(Mean Absolute Error) meri prosečnu grešku između stvarnih i predviđenih vrednosti. Greška između stvarnih i predviđenih vrednosti iznosi oko 50 miliona.
+MSE(Mean Squared Error) meri prosečnu kvadratnu grešku između stvarnih i predviđenih vrednosti. U ovom slučaju ona iznosi 1.097494e+16 što ukazuje na velike greške u modelu.
+RMSE(Root Mean Squared Error) koristi se za procenu veličine greške u istim jedinicama kao originalni podaci. Prosečna greška modela je oko 104 miliona.
+
+
+Feature selection preko stabla odlučivanja
+
+```{r}
+print(lm.fit3$variable.importance)
+```
+
+Ovde potvrđujemo da su budget_range i votes najbitiniji prediktori. Sada ću samo njih ubaciti u model.
+
+```{r}
+lm.fit3.1 <- rpart(gross ~ votes + budget_range,  method = "anova", data = train) 
+lm.fit3.1
+```
+
+
+```{r}
+predictions <- predict(lm.fit3.1, test)
+
+mae <- mean(abs(predictions-test$gross))
+mse <- mean((predictions-test$gross)^2)
+rmse <-sqrt(mse)
+r2 <- 1- (sum((test$gross - predictions)^2) / sum((test$gross-mean(test$gross))^2))
+
+cat("MAE:", mae, "\n")
+cat("MSE:", mse, "\n")
+cat("RMSE:", rmse, "\n")
+cat("R2:", r2, "\n")
+```
+
+Sa selekcijom prediktora se dobija malo poboljšanje R2 - malopre je bilo 61%, sada je 63%. Isto tako MAE, MSE i RMSE imaju nešto niže vrednosti.
+
+Random Forest
+
+```{r}
+lm.fit4 = randomForest(gross ~ rating + genre + year + votes + runtime + budget_range + score_range + company_group + country_group, data = train)
+lm.fit4
+```
+
+Sada koristim metrike MAE, MSE i RMSE za procenu performansi modela.
+
+```{r}
+predictions <- predict(lm.fit4, newdata=test)
+
+mae <- mean(abs(predictions-test$gross))
+mse <- mean((predictions-test$gross)^2)
+rmse <-sqrt(mse)
+
+cat("MAE:", mae, "\n")
+cat("MSE:", mse, "\n")
+cat("RMSE:", rmse, "\n")
+```
+
+Procenat objašnjene varijanse iznosi ~74% što je dosta bolje u odnosu na model linearne regresije i stabla odlučivanja.
+MAE iznosi oko 36 miliona, MSE iznosi 7.354478e+15, RMSE je oko 85 miliona. Na osnovu ovih metrika ovaj model je najbolji do sada.
+
+
+
+Zaključak
+
+Cilj kreiranja dataset-a je bio da se na osnovu analize otkrije da li filmska industrija propada. Na osnovu svih grafika i zaključaka do sad mogu da zaključim da to nije tačno, pogotovo sa većim porastom budžeta i prihoda nakon 2010. godine. Podaci su prikupljeni zaključno sa 2020. godinom tako da nemamo najnovije analize. Što se tiče kreiranja modela i predviđanja kolone prihod, najbolji model koji sam dobila je pomoću Random Forest-a da je procenat objašnjene varijanse 74%.
+

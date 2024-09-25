@@ -7,7 +7,7 @@ Opis podataka
 Dataset movies.csv sadrži informacije o filmovima, uključujući:
     -**name**: kategorijska promenljiva koja označava naziv filma
     
-    **rating**: kategorijska promenljiva koja označava kategoriju filma (R, PG,..) 
+    -**rating**: kategorijska promenljiva koja označava kategoriju filma (R, PG,..) 
     
     **genre**: kategorijska promenljiva koja označava žanr filma
     
